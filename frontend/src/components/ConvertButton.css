@@ -1,0 +1,59 @@
+.convert-button-container {
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0;
+}
+
+.convert-button {
+  background-color: #27ae60;
+  color: white;
+  border: none;
+  padding: 1rem 3rem;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.convert-button:hover:not(.disabled) {
+  background-color: #229954;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(39, 174, 96, 0.3);
+}
+
+.convert-button.disabled {
+  background-color: #bdc3c7;
+  cursor: not-allowed;
+}
+
+.convert-button.converting {
+  background-color: #95a5a6;
+  cursor: wait;
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .convert-button {
+    padding: 0.875rem 2rem;
+    font-size: 1rem;
+  }
+}

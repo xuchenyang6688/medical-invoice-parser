@@ -1,0 +1,145 @@
+.file-upload-container {
+  width: 100%;
+}
+
+.file-upload-dropzone {
+  border: 2px dashed #3498db;
+  border-radius: 12px;
+  padding: 3rem;
+  text-align: center;
+  background-color: #f8fafc;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.file-upload-dropzone:hover {
+  border-color: #2980b9;
+  background-color: #ecf0f1;
+}
+
+.file-upload-dropzone.dragging {
+  border-color: #2980b9;
+  background-color: #d6eaf8;
+  transform: scale(1.02);
+}
+
+.dropzone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dropzone-icon {
+  color: #3498db;
+}
+
+.dropzone-text {
+  font-size: 1.2rem;
+  color: #2c3e50;
+  font-weight: 500;
+  margin: 0;
+}
+
+.dropzone-subtext {
+  color: #7f8c8d;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.browse-button {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 0.75rem 2rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.browse-button:hover {
+  background-color: #2980b9;
+}
+
+.file-list {
+  margin-top: 2rem;
+  background-color: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  border: 1px solid #e0e0e0;
+}
+
+.file-list h3 {
+  color: #2c3e50;
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+}
+
+.file-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.file-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid #ecf0f1;
+  gap: 1rem;
+}
+
+.file-list li:last-child {
+  border-bottom: none;
+}
+
+.file-name {
+  flex: 1;
+  color: #2c3e50;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size {
+  color: #7f8c8d;
+  font-size: 0.9rem;
+}
+
+.remove-button {
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.remove-button:hover {
+  background-color: #c0392b;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .file-upload-dropzone {
+    padding: 2rem 1rem;
+  }
+
+  .dropzone-text {
+    font-size: 1rem;
+  }
+
+  .file-list {
+    padding: 1rem;
+  }
+}
