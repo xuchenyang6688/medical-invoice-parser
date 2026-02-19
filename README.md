@@ -71,6 +71,14 @@ MINERU_API_TOKEN=your_mineru_api_token_here
 # From backend directory with conda environment activated
 uvicorn main:app --reload
 ```
+e.g.
+```
+1. conda create -p /d/conda_envs/medical-invoice-parser python=3.10 -y (Skip if you already done)
+2. conda activate medical-invoice-parser
+3. cd backend
+4. python -m pip install -r requirements.txt
+5. python -m uvicorn main:app --reload
+```
 
 The backend will be available at `http://localhost:8000`
 API documentation: `http://localhost:8000/docs`

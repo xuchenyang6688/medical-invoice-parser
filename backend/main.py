@@ -3,6 +3,8 @@ Medical Invoice PDF Parser — FastAPI Backend
 Entry point for the FastAPI application.
 """
 
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -11,6 +13,12 @@ from routers import convert
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Configure logging so MinerU API client logs are visible
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 app = FastAPI(
     title="Medical Invoice Parser API",

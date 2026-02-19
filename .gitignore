@@ -32,6 +32,7 @@ backend/*.pyc
 backend/.pytest_cache/
 backend/.coverage
 backend/htmlcov/
+backend/test/
 
 # Frontend
 frontend/node_modules/
