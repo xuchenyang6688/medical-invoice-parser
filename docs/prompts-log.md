@@ -130,6 +130,30 @@ Testing revealed that the markdown (`full.md`) from MinerU's zip **drops `page_f
 
 ---
 
+## Session 4 - React Frontend Wiring (Phase 1, Step 5)
+
+### Initial Prompt
+**Prompt:** "Let's continue" (after Phase 1, Step 3 was committed)
+
+**Outcome:**
+- Wired the React frontend to the real backend API — replaced `setTimeout` placeholder in `App.jsx` with actual `api.convertFiles(files)` call
+- All frontend components were already fully implemented during scaffolding (Session 1)
+- Created `CLAUDE.md` at project root for future Claude Code sessions
+
+### What Changed
+
+Only `frontend/src/App.jsx` needed modification:
+- Added `import api from './services/api'`
+- Replaced `setTimeout(() => { setIsConverting(false) }, 2000)` with `await api.convertFiles(files)`
+- Used `finally` block to ensure `setIsConverting(false)` always runs
+- Better error message extraction from error objects
+
+### Key Learning
+
+- **Scaffolding pays off:** All 4 frontend components (`FileUpload`, `ConvertButton`, `ProgressBar`, `JsonViewer`) and `api.js` were fully implemented during the scaffolding phase (Session 1). The only missing piece was a single import + function call in `App.jsx`. Good scaffolding dramatically reduces integration work.
+
+---
+
 ## Future Sessions
 
 *(This section will be updated as development progresses)*
@@ -149,5 +173,5 @@ Testing revealed that the markdown (`full.md`) from MinerU's zip **drops `page_f
 ## Notes
 
 - Last updated: 2026-02-19
-- Current phase: Phase 1 - End-to-End with MinerU Online API (Step 3 complete)
+- Current phase: Phase 1 - End-to-End with MinerU Online API (Step 5 complete, Step 6 remaining)
 - Environment: Conda for Python, npm for Node.js

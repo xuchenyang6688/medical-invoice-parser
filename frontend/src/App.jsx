@@ -3,6 +3,7 @@ import FileUpload from './components/FileUpload'
 import ConvertButton from './components/ConvertButton'
 import ProgressBar from './components/ProgressBar'
 import JsonViewer from './components/JsonViewer'
+import api from './services/api'
 import './App.css'
 
 function App() {
@@ -28,16 +29,12 @@ function App() {
     setResults([])
 
     try {
-      // TODO: Implement API call to backend
-      // const response = await api.convertFiles(files)
-      // setResults(response.data.results)
-
-      // Placeholder for now
-      setTimeout(() => {
-        setIsConverting(false)
-      }, 2000)
+      const response = await api.convertFiles(files)
+      setResults(response.results)
     } catch (err) {
-      setError('Failed to convert files. Please try again.')
+      const message = err.message || 'Failed to convert files. Please try again.'
+      setError(message)
+    } finally {
       setIsConverting(false)
     }
   }
