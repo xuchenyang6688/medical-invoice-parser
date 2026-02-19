@@ -154,6 +154,48 @@ Only `frontend/src/App.jsx` needed modification:
 
 ---
 
+## Session 5 - Polling Bug Fix
+
+### Bug Report
+**User identified:** `_poll_results()` in `mineru_api.py` was reading `state` from the wrong JSON level.
+
+**Root cause:** The code had `state = data.get("state", "unknown")`, but MinerU's API response puts `state` on each entry inside `data.extract_result[]`, NOT on the `data` object itself. This caused `state` to always be `"unknown"`, so the polling loop never detected completion and always timed out.
+
+**MinerU API response structure:**
+```json
+{
+  "code": 0,
+  "data": {
+    "batch_id": "...",
+    "extract_result": [
+      {
+        "data_id": "...",
+        "file_name": "invoice.pdf",
+        "state": "done",
+        "full_zip_url": "..."
+      }
+    ]
+  }
+}
+```
+
+### Fix Applied
+Changed `_poll_results()` to iterate `data.extract_result[]` and check that ALL entries have a terminal state (`"done"` or `"failed"`):
+```python
+extract_result = data.get("extract_result", [])
+states = [entry.get("state", "unknown") for entry in extract_result]
+if extract_result and all(s in ("done", "failed") for s in states):
+    return data
+```
+
+Also added handling for failed entries — logs error messages for any files with `state == "failed"`.
+
+### Key Learning
+- **Always verify API response structure against real responses** — the `state` field location was assumed incorrectly during initial implementation
+- **Poll defaults adjusted** to `MINERU_POLL_INTERVAL=5s`, `MINERU_POLL_TIMEOUT=300s` (from previous 60s/1200s) since the bug was the real reason for timeouts, not slow processing
+
+---
+
 ## Future Sessions
 
 *(This section will be updated as development progresses)*
@@ -173,5 +215,5 @@ Only `frontend/src/App.jsx` needed modification:
 ## Notes
 
 - Last updated: 2026-02-19
-- Current phase: Phase 1 - End-to-End with MinerU Online API (Step 5 complete, Step 6 remaining)
+- Current phase: Phase 1 - End-to-End with MinerU Online API (Steps 1-5 complete, Step 6 end-to-end testing remaining)
 - Environment: Conda for Python, npm for Node.js

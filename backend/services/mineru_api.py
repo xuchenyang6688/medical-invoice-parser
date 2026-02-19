@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 MINERU_API_BASE = "https://mineru.net/api/v4"
 MINERU_API_TOKEN = os.getenv("MINERU_API_TOKEN", "")
 MINERU_MODEL_VERSION = os.getenv("MINERU_MODEL_VERSION", "vlm")
-MINERU_POLL_INTERVAL = int(os.getenv("MINERU_POLL_INTERVAL", "60"))
-MINERU_POLL_TIMEOUT = int(os.getenv("MINERU_POLL_TIMEOUT", "1200"))
+MINERU_POLL_INTERVAL = int(os.getenv("MINERU_POLL_INTERVAL", "5"))
+MINERU_POLL_TIMEOUT = int(os.getenv("MINERU_POLL_TIMEOUT", "300"))
 
 
 # ---------------------------------------------------------------------------
@@ -125,7 +125,11 @@ async def _poll_results(
     interval: int = MINERU_POLL_INTERVAL,
 ) -> dict:
     """
-    Poll GET /extract-results/batch/{batch_id} until state == "done".
+    Poll GET /extract-results/batch/{batch_id} until all entries are done.
+
+    The "state" field lives on each entry inside data.extract_result[],
+    NOT on the data object itself. We check that every entry has
+    state == "done" (or "failed") before returning.
 
     Returns:
         The full response data dict.
@@ -143,17 +147,32 @@ async def _poll_results(
         resp = await client.get(url, headers=_headers())
         resp.raise_for_status()
         result = resp.json()
-        logger.debug("Poll response: %s", result)
+        logger.info("Poll response: %s", result)
 
         if result.get("code") != 0:
             msg = result.get("msg", "Unknown error")
             raise MinerUAPIError(f"Poll failed: {msg}")
 
         data = result["data"]
-        state = data.get("state", "unknown")
-        logger.info("Batch state: %s", state)
+        extract_result = data.get("extract_result", [])
 
-        if state == "done":
+        # Check state on each entry in extract_result[]
+        states = [entry.get("state", "unknown") for entry in extract_result]
+        logger.info("Entry states: %s", states)
+
+        # All entries must be in a terminal state (done or failed)
+        if extract_result and all(s in ("done", "failed") for s in states):
+            # Check for failures
+            failed = [
+                entry for entry in extract_result
+                if entry.get("state") == "failed"
+            ]
+            if failed:
+                err_msgs = [
+                    f"{e.get('file_name', '?')}: {e.get('err_msg', 'unknown error')}"
+                    for e in failed
+                ]
+                logger.error("Some files failed: %s", err_msgs)
             return data
 
         await asyncio.sleep(interval)

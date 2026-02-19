@@ -63,6 +63,7 @@ frontend/
 ## Known Quirks
 
 - MinerU polling takes **10+ minutes** per invoice (MINERU_POLL_INTERVAL=60s, MINERU_POLL_TIMEOUT=1200s)
+- MinerU API: the `state` field is on each entry inside `data.extract_result[]`, NOT on the `data` object itself — a past bug read it from the wrong level causing polling to always timeout
 - `zhipuai` SDK requires `sniffio` which isn't auto-installed — install manually if missing
 - MinerU API response field is `extract_result` (singular, no 's')
 - GLM system messages can cause inconsistent results — currently commented out, user prompt alone works better
