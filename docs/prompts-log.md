@@ -68,6 +68,68 @@ The correct flow for local file uploads (clarified from official docs):
 
 ---
 
+## Session 3 - Zhipu GLM Integration + Content List Extraction (Phase 1, Step 3)
+
+### Initial Prompt
+**Prompt:** "Let's continue with Phase 1, Step 3: Zhipu GLM integration"
+
+**Outcome:**
+- Implemented full Zhipu GLM structurer in `backend/services/zhipu_structurer.py`
+- Wired Zhipu into `POST /convert`, replacing the `InvoiceData()` placeholder
+- Switched MinerU extraction from `full.md` to `content_list_v2.json` for more complete data
+- Added `POST /debug/zhipu` debug endpoint for isolated testing
+
+### Key Discovery: Markdown Drops Page Footers
+
+Testing revealed that the markdown (`full.md`) from MinerU's zip **drops `page_footer` blocks**. The hospital name (`收款单位（章）：宣武医院`) lives in a page footer, so Zhipu GLM incorrectly guessed `"北京市医疗门报数据（电子）"` (the document title) as the payee.
+
+**Solution:** Switched to extracting `content_list_v2.json` from the zip instead, which preserves ALL content blocks:
+- `title` → document title text
+- `paragraph` → field labels and values (票据代码, 交款人, 开票日期, etc.)
+- `table` → HTML table with amounts and insurance details
+- `page_footer` → **收款单位（章）：宣武医院** ← this was missing from markdown!
+
+### content_list_v2.json Structure
+```
+[                              ← array of pages
+  [                            ← page = array of blocks
+    { "type": "title",       content.title_content[*].content }
+    { "type": "paragraph",   content.paragraph_content[*].content }
+    { "type": "table",       content.html }
+    { "type": "page_footer", content.page_footer_content[*].content }
+  ]
+]
+```
+
+### Zhipu GLM Implementation Details
+
+- **SDK:** `zhipuai.ZhipuAI` (sync SDK, wrapped with `asyncio.to_thread()` for async FastAPI)
+- **Model:** `glm-4-flash` (free tier, sufficient for structured extraction)
+- **Temperature:** 0.1 (low for deterministic extraction)
+- **Prompt refinements:**
+  - Added field name variation hints (e.g., `医保统筹基金支付` → `医保基金支付金额`)
+  - Added date format normalization instruction (`20250605` → `2025-06-05`)
+  - Added output example for GLM to follow
+  - Instructed to output pure JSON without code fences
+- **Response parsing:** Strip code fences → `json.loads()` → `InvoiceData.model_validate()` (uses Chinese aliases)
+
+### Key Learnings
+
+- **`content_list_v2.json` > `full.md`** for invoice data extraction — markdown drops footers and headers
+- **`_flatten_content_list()` helper** iterates pages → blocks, extracts text by type, joins with newlines
+- **`glm-4-flash`** is free and fast enough for structured extraction tasks
+- **System message commented out** — the extraction prompt alone is sufficient; adding a system message caused inconsistent results
+- **`sniffio` dependency** was missing from the `zhipuai` package — had to install separately
+- **Debug endpoints remain invaluable** — `POST /debug/zhipu` allows testing GLM structuring with saved MinerU output, avoiding the 10-min MinerU wait
+
+### Architecture Decision: Content List Preferred, Markdown Fallback
+
+- `_extract_content_text_from_zip()` tries `content_list_v2.json` first, falls back to `*_content_list.json`, then markdown
+- Old `_extract_markdown_from_zip()` kept for backward compatibility and debug comparison
+- `parse_pdfs_batch()` switched to use content_list extraction
+
+---
+
 ## Future Sessions
 
 *(This section will be updated as development progresses)*
@@ -87,5 +149,5 @@ The correct flow for local file uploads (clarified from official docs):
 ## Notes
 
 - Last updated: 2026-02-19
-- Current phase: Phase 1 - End-to-End with MinerU Online API (Step 2 complete)
+- Current phase: Phase 1 - End-to-End with MinerU Online API (Step 3 complete)
 - Environment: Conda for Python, npm for Node.js

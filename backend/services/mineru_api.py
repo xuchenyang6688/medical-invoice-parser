@@ -14,6 +14,7 @@ Auth     : Bearer token in Authorization header
 
 import asyncio
 import io
+import json
 import logging
 import os
 import zipfile
@@ -193,6 +194,127 @@ async def _extract_markdown_from_zip(
         return md_content
 
 
+def _flatten_content_list(content_list: list) -> str:
+    """
+    Flatten content_list_v2.json into plain text suitable for Zhipu GLM.
+
+    The content_list is a nested structure: list of pages, each page is a
+    list of blocks. Each block has a "type" and "content" dict.
+
+    We extract text from all block types except images, joining with newlines.
+    This preserves ALL invoice content including page_footer blocks that
+    the markdown extractor drops (e.g., 收款单位).
+    """
+    lines: list[str] = []
+
+    for page in content_list:
+        for block in page:
+            block_type = block.get("type", "")
+            content = block.get("content", {})
+
+            if block_type == "title":
+                for item in content.get("title_content", []):
+                    if item.get("type") == "text":
+                        lines.append(item.get("content", ""))
+
+            elif block_type == "paragraph":
+                for item in content.get("paragraph_content", []):
+                    if item.get("type") == "text":
+                        lines.append(item.get("content", ""))
+
+            elif block_type == "table":
+                # Pass HTML table directly — GLM can parse it
+                html = content.get("html", "")
+                if html:
+                    lines.append(html)
+
+            elif block_type == "page_footer":
+                for item in content.get("page_footer_content", []):
+                    if item.get("type") == "text":
+                        lines.append(item.get("content", ""))
+
+            elif block_type == "page_header":
+                for item in content.get("page_header_content", []):
+                    if item.get("type") == "text":
+                        lines.append(item.get("content", ""))
+
+            # Skip "image" blocks — no useful text
+
+    return "\n".join(lines)
+
+
+async def _extract_content_text_from_zip(
+    client: httpx.AsyncClient,
+    zip_url: str,
+) -> str:
+    """
+    Download a result zip and extract flattened text from content_list_v2.json.
+
+    This is preferred over _extract_markdown_from_zip() because the
+    content_list includes ALL content blocks (including page_footer with
+    收款单位) that the markdown extractor drops.
+
+    Fallback order:
+      1. content_list_v2.json
+      2. *_content_list.json
+      3. Fall back to markdown extraction
+    """
+    logger.info("Downloading result zip from %s", zip_url)
+    resp = await client.get(zip_url)
+    resp.raise_for_status()
+
+    with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+        all_files = zf.namelist()
+        logger.debug("Zip contents: %s", all_files)
+
+        # Try content_list_v2.json first
+        content_list_file = None
+        for name in all_files:
+            if name.endswith("content_list_v2.json"):
+                content_list_file = name
+                break
+
+        # Fallback to *_content_list.json
+        if not content_list_file:
+            for name in all_files:
+                if name.endswith("_content_list.json"):
+                    content_list_file = name
+                    break
+
+        if content_list_file:
+            raw = zf.read(content_list_file).decode("utf-8", errors="replace")
+            try:
+                content_list = json.loads(raw)
+            except json.JSONDecodeError as e:
+                logger.warning(
+                    "Failed to parse %s: %s, falling back to markdown",
+                    content_list_file, e,
+                )
+                return await _extract_markdown_from_zip(client, zip_url)
+
+            text = _flatten_content_list(content_list)
+            logger.info(
+                "Extracted content text from '%s' (%d chars)",
+                content_list_file,
+                len(text),
+            )
+            return text
+
+        # No content_list found — fall back to markdown
+        logger.warning(
+            "No content_list JSON in zip, falling back to markdown. Files: %s",
+            all_files,
+        )
+        # Re-use the already downloaded zip bytes
+        md_files = [n for n in all_files if n.endswith(".md")]
+        if md_files:
+            md_content = zf.read(md_files[0]).decode("utf-8", errors="replace")
+            logger.info("Fallback: extracted markdown from '%s'", md_files[0])
+            return md_content
+
+        raise MinerUAPIError("Result zip contains no content_list or markdown files")
+
+
 def _extract_markdown_from_result(result: dict) -> str:
     """
     Extract markdown text from a single extract_result entry.
@@ -251,22 +373,34 @@ async def extract_markdown_from_zip(zip_url: str) -> str:
     Public wrapper around _extract_markdown_from_zip.
 
     Downloads a result zip and extracts the markdown content.
-    Useful for debug endpoints that want to test zip extraction in isolation.
+    Kept for backward compatibility and debug comparison.
     """
     async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
         return await _extract_markdown_from_zip(client, zip_url)
 
 
+async def extract_content_text_from_zip(zip_url: str) -> str:
+    """
+    Public wrapper around _extract_content_text_from_zip.
+
+    Downloads a result zip and extracts flattened text from content_list_v2.json.
+    This is the preferred extraction method — includes page_footer blocks
+    (e.g., 收款单位) that the markdown extractor drops.
+    """
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
+        return await _extract_content_text_from_zip(client, zip_url)
+
+
 async def parse_pdf(pdf_bytes: bytes, filename: str = "invoice.pdf") -> str:
     """
-    Send a single PDF to the MinerU Online API and return extracted markdown.
+    Send a single PDF to the MinerU Online API and return extracted text.
 
     Args:
         pdf_bytes: Raw bytes of the PDF file.
         filename:  Original filename (used in the upload request).
 
     Returns:
-        Extracted text/markdown string from MinerU.
+        Extracted text string from MinerU (flattened from content_list_v2.json).
 
     Raises:
         MinerUAPIError: If the API returns an error or times out.
@@ -279,14 +413,17 @@ async def parse_pdfs_batch(
     files: list[tuple[bytes, str]],
 ) -> list[str]:
     """
-    Upload multiple PDFs in a single batch and return extracted markdown
+    Upload multiple PDFs in a single batch and return extracted text
     for each file.
+
+    Uses content_list_v2.json from the result zip (preferred over markdown
+    because it includes page_footer blocks with 收款单位 etc.).
 
     Args:
         files: List of (pdf_bytes, filename) tuples.
 
     Returns:
-        List of markdown strings, one per input file (same order).
+        List of text strings, one per input file (same order).
 
     Raises:
         MinerUAPIError: If the API returns an error or times out.
@@ -313,7 +450,7 @@ async def parse_pdfs_batch(
         # Step 3: Poll until all tasks are done
         data = await _poll_results(client, batch_id)
 
-        # Step 4: Extract markdown from results
+        # Step 4: Extract text from results (content_list_v2.json preferred)
         extract_result = data.get("extract_result", [])
         logger.info(
             "Got %d extract_result entries for %d files",
@@ -321,23 +458,23 @@ async def parse_pdfs_batch(
             len(files),
         )
 
-        markdowns: list[str] = []
+        texts: list[str] = []
         for i, entry in enumerate(extract_result):
             # Check if entry has a zip URL that needs downloading
-            md_text = _extract_markdown_from_result(entry)
+            text = _extract_markdown_from_result(entry)
 
-            if md_text.startswith("http"):
-                # It's a URL — download the zip and extract markdown
-                md_text = await _extract_markdown_from_zip(client, md_text)
+            if text.startswith("http"):
+                # It's a URL — download the zip and extract content_list text
+                text = await _extract_content_text_from_zip(client, text)
 
-            if not md_text:
+            if not text:
                 logger.warning(
-                    "Empty markdown for file %d (%s), raw entry: %s",
+                    "Empty text for file %d (%s), raw entry: %s",
                     i,
                     filenames[i] if i < len(filenames) else "?",
                     entry,
                 )
 
-            markdowns.append(md_text)
+            texts.append(text)
 
-        return markdowns
+        return texts
